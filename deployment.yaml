@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connectivity-tester
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: connectivity-tester
+  template:
+    metadata:
+      labels:
+        app: connectivity-tester
+    spec:
+      containers:
+      - name: connectivity-tester
+        image: dockerdemo786/k8s-connectivity-tester  # Replace with your Node.js app image
+        ports:
+        - containerPort: 8080  # This should match the port your app listens on
+        env:
+        - name: APP_NAME
+          value: "Connectivity Test App"  # Or any environment variables you need
+        - name: BG_COLOR
+          value: "blue"  # Background color as per your .env config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: connectivity-tester
+spec:
+  type: NodePort  # Exposes the service on a NodePort
+  selector:
+    app: connectivity-tester
+  ports:
+    - port: 8080  # The internal port your app will expose
+      targetPort: 8080  # The port your app listens on inside the container
+      nodePort: 30081  # The port exposed externally
