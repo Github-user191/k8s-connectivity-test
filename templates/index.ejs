@@ -1,64 +1,196 @@
-<!-- /templates/index.ejs -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= app_name %></title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
   <style>
-    body {
-      background-color: <%= backgroundcolor %>;
-      font-family: Arial, sans-serif;
-      color: #fff;
-      text-align: center;
-      padding: 50px;
+    @keyframes gradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
     }
-    h1 {
-      font-size: 2.5em;
+    
+    .gradient-bg {
+      background: linear-gradient(-45deg, <%= backgroundcolor %>, <%= backgroundcolor %>);
+      background-size: 400% 400%;
+      animation: gradient 15s ease infinite;
     }
-    form {
-      margin: 20px 0;
+    
+    .glass {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
-    input {
-      padding: 10px;
-      margin: 5px;
-      font-size: 1em;
+    
+    .input-focus {
+      transition: all 0.3s ease;
     }
-    button {
-      padding: 10px 20px;
-      font-size: 1em;
-      cursor: pointer;
-      background-color: #3498db;
-      border: none;
-      color: white;
-      border-radius: 5px;
+    
+    .input-focus:focus {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.1);
     }
-    button:hover {
-      background-color: #2980b9;
+
+    .success-animation {
+      animation: successPulse 2s infinite;
     }
-    .status {
-      margin-top: 20px;
-      font-size: 1.2em;
+
+    .error-animation {
+      animation: errorShake 0.5s;
+    }
+
+    @keyframes successPulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes errorShake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-10px); }
+      75% { transform: translateX(10px); }
+    }
+
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
-<body>
-
-  <h1><%= app_name %></h1>
-
-  <form id="connect-form" action="/test" method="POST">
-    <input type="text" name="host" placeholder="Enter Hostname" required><br>
-    <input type="number" name="port" placeholder="Enter Port" required><br>
-    <button type="submit">Test Connection</button>
-  </form>
-
-  <% if (status) { %>
-    <div class="status">
-      <h2>Test Results</h2>
-      <p>Status: <%= status.message %></p>
+<body class="gradient-bg min-h-screen flex items-center justify-center p-4">
+  <div class="glass rounded-2xl p-8 w-full max-w-md">
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-white mb-2"><%= app_name %></h1>
+      <p class="text-gray-200 text-lg">Test your kubernetes service connectivity</p>
     </div>
-  <% } %>
 
+    <form id="connect-form" class="space-y-6" action="/test" method="POST">
+      <div class="space-y-2">
+        <label class="block text-gray-200 text-sm font-medium mb-1">Hostname</label>
+        <input 
+          type="text" 
+          name="host" 
+          placeholder="Enter hostname (e.g., localhost)"
+          class="input-focus w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-gray-300 border border-transparent focus:border-white focus:ring-0 outline-none"
+          required
+        >
+      </div>
+
+      <div class="space-y-2">
+        <label class="block text-gray-200 text-sm font-medium mb-1">Port</label>
+        <input 
+          type="number" 
+          name="port" 
+          placeholder="Enter port (e.g., 3000)"
+          class="input-focus w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-gray-300 border border-transparent focus:border-white focus:ring-0 outline-none"
+          required
+        >
+      </div>
+
+      <button 
+        type="submit"
+        class="w-full bg-white bg-opacity-20 hover:bg-opacity-30 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+      >
+        Test Connection
+      </button>
+    </form>
+
+    <!-- Loader Spinner (Hidden by Default) -->
+    <div id="loading" class="flex justify-center items-center mt-4 hidden">
+      <div class="spinner"></div>
+    </div>
+
+    <div id="result" class="mt-8 hidden">
+      <div class="p-4 rounded-lg glass">
+        <h2 class="text-xl font-semibold text-white mb-2">Test Results</h2>
+        <div id="status-indicator" class="flex items-center space-x-3 mt-4">
+          <div id="status-icon" class="w-4 h-4 rounded-full"></div>
+          <p id="status-message" class="text-white"></p>
+        </div>
+        <div id="resolved-ip" class="mt-2 text-sm text-gray-200 hidden">
+          <strong>Resolved IP:</strong> <span id="resolved-ip-address"></span>
+        </div>
+        <div id="details" class="mt-4 text-sm text-gray-200"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('connect-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      // Show the loading spinner and hide result container
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('result').classList.add('hidden');
+      
+      const formData = new FormData(e.target);
+      const host = formData.get('host');
+      const port = Number(formData.get('port'));
+      
+      const result = document.getElementById('result');
+      const statusIcon = document.getElementById('status-icon');
+      const statusMessage = document.getElementById('status-message');
+      const details = document.getElementById('details');
+      const resolvedIPContainer = document.getElementById('resolved-ip');
+      const resolvedIPAddress = document.getElementById('resolved-ip-address');
+      
+      try {
+        const response = await fetch('/test', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ host, port }),
+        });
+        
+        const data = await response.json();
+        console.log("data: ", data);
+
+        // Hide the loading spinner and show the result container
+        document.getElementById('loading').classList.add('hidden');
+        result.classList.remove('hidden');
+        
+        if (data.success) {
+          statusIcon.className = 'w-4 h-4 rounded-full bg-green-500 success-animation';
+          statusMessage.textContent = `Connection Successful`;
+          statusMessage.style.fontWeight = 'bold';
+        } else {
+          statusIcon.className = 'w-4 h-4 rounded-full bg-red-500 error-animation';
+          statusMessage.textContent = 'Connection Failed';
+          statusMessage.style.fontWeight = 'bold';
+        }
+
+        if (data.ipAddress) {
+          resolvedIPContainer.classList.remove('hidden');
+          resolvedIPAddress.textContent = data.ipAddress;
+        } else {
+          resolvedIPContainer.classList.add('hidden');
+        }
+
+      } catch (error) {
+        console.log("error: ", error);
+        
+        // Hide the loading spinner and show the result container
+        document.getElementById('loading').classList.add('hidden');
+        result.classList.remove('hidden');
+        
+        statusIcon.className = 'w-4 h-4 rounded-full bg-red-500 error-animation';
+        statusMessage.textContent = 'Error';
+        statusMessage.style.fontWeight = 'bold';
+        details.textContent = 'An error occurred while testing the connection.';
+      }
+    });
+  </script>
 </body>
 </html>

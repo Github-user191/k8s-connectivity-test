@@ -1,6 +1,7 @@
 import express from 'express';
 import net from 'net';
 import path from 'path';
+import dns from 'dns';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';  // Import to convert URL to file path
 import { dirname } from 'path';  // To get the directory name
@@ -15,13 +16,13 @@ const color_codes = {
     "red": "#e74c3c",
     "green": "#16a085",
     "blue": "#2980b9",
-    "blue2": "#30336b",
     "pink": "#be2edd",
     "darkblue": "#130f40"
 };
 
+
 const APP_NAME = process.env.APP_NAME || "Connectivity Test App";
-const BG_COLOR = process.env.BG_COLOR || "blue";
+const BG_COLOR = process.env.BG_COLOR || "red";
 
 // Middleware to parse JSON requests
 app.use(express.json());
@@ -39,6 +40,20 @@ app.set('views', path.join(__dirname, 'templates'));
 
 // Serve static files (e.g., images, CSS)
 app.use(express.static(path.join(__dirname, 'static')));
+
+async function resolveHost(host) {
+    return new Promise((resolve, reject) => {
+        dns.lookup(host, (err, address, family) => {
+            if (err) {
+                console.error(`Error resolving hostname "${host}": ${err.message}`);
+                reject({ status: false, message: `Cannot resolve hostname "${host}".` });
+            } else {
+                console.log(`Resolved hostname "${host}" to IP address "${address}" (IPv${family})`);
+                resolve({ address, family });
+            }
+        });
+    });
+}
 
 // Test TCP Connection
 function socketTest(host, port) {
@@ -75,9 +90,7 @@ app.post('/test', async (req, res) => {
 
     console.log(`Received request to test connectivity to host: ${host}, port: ${port}`);
     
-    // Validate and convert port
-    const numericPort = parseInt(port, 10);
-    if (isNaN(numericPort)) {
+    if (isNaN(port)) {
         console.error(`Invalid port: ${port}. Must be a number.`);
         return res.render('index', {
             app_name: APP_NAME,
@@ -87,19 +100,13 @@ app.post('/test', async (req, res) => {
     }
 
     try {
-        const testResults = await socketTest(host, numericPort);
-        res.render('index', {
-            app_name: APP_NAME,
-            backgroundcolor: color_codes[BG_COLOR],  // Color code for background
-            status: testResults // Passing the test result to the template
-        });
+        const resolvedHost = await resolveHost(host);
+        console.log("Resolved host: ", resolvedHost);
+        const testResults = await socketTest(host, port);
+        res.json({ success: testResults.status, message: testResults.message, ipAddress: resolvedHost.address });
     } catch (error) {
         console.error(`Error during connection test: ${error.message}`);
-        res.render('index', {
-            app_name: APP_NAME,
-            backgroundcolor: color_codes[BG_COLOR],
-            status: error // Passing error message to the template
-        });
+        res.json({ success: false, message: error.message});
     }
 });
 

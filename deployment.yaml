@@ -1,37 +1,247 @@
+# EXTERNAL APP
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: connectivity-tester
+  name: k8s-external-app
+  labels:
+    app: k8s-external-app
+    type: k8s-connectivity-test
 spec:
-  replicas: 1
   selector:
     matchLabels:
-      app: connectivity-tester
+      app: k8s-external-app
+      type: k8s-connectivity-test
   template:
     metadata:
+      name: k8s-external-app
       labels:
-        app: connectivity-tester
+        app: k8s-external-app
+        type: k8s-connectivity-test
     spec:
       containers:
-      - name: connectivity-tester
-        image: dockerdemo786/k8s-connectivity-tester  # Replace with your Node.js app image
+      - name: k8s-external-app
+        image: dockerdemo786/k8s-connectivity-test:1.0.0
         ports:
-        - containerPort: 8080  # This should match the port your app listens on
+        - containerPort: 8080
         env:
         - name: APP_NAME
-          value: "Connectivity Test App"  # Or any environment variables you need
+          value: "External application"
         - name: BG_COLOR
-          value: "blue"  # Background color as per your .env config
+          value: "darkblue"
+  replicas: 2
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: connectivity-tester
+  name: k8s-external-service
+  labels:
+    app: k8s-external-app
+    type: k8s-connectivity-test
 spec:
-  type: NodePort  # Exposes the service on a NodePort
+  type: NodePort
   selector:
-    app: connectivity-tester
+    app: k8s-external-app
+    type: k8s-connectivity-test
   ports:
-    - port: 8080  # The internal port your app will expose
-      targetPort: 8080  # The port your app listens on inside the container
-      nodePort: 30081  # The port exposed externally
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30081
+---
+# INTERNAL APP
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-internal-app
+  labels:
+    app: k8s-internal-app
+    type: k8s-connectivity-test
+spec:
+  selector:
+    matchLabels:
+      app: k8s-internal-app
+      type: k8s-connectivity-test
+  template:
+    metadata:
+      name: k8s-internal-app
+      labels:
+        app: k8s-internal-app
+        type: k8s-connectivity-test
+    spec:
+      containers:
+      - name: k8s-internal-app
+        image: dockerdemo786/k8s-connectivity-test:1.0.0
+        ports:
+        - containerPort: 8080
+        env:
+        - name: APP_NAME
+          value: "Internal application"
+        - name: BG_COLOR
+          value: "pink"
+  replicas: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-internal-service
+  labels:
+    app: k8s-internal-app
+    type: k8s-connectivity-test
+spec:
+  type: NodePort
+  selector:
+    app: k8s-internal-app
+    type: k8s-connectivity-test
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30082
+---
+# PAYROLL APP
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-payroll-app
+  labels:
+    app: k8s-payroll-app
+    type: k8s-connectivity-test
+spec:
+  selector:
+    matchLabels:
+      app: k8s-payroll-app
+      type: k8s-connectivity-test
+  template:
+    metadata:
+      name: k8s-payroll-app
+      labels:
+        app: k8s-payroll-app
+        type: k8s-connectivity-test
+    spec:
+      containers:
+      - name: k8s-payroll-app
+        image: dockerdemo786/k8s-connectivity-test:1.0.0
+        ports:
+        - containerPort: 8080
+        env:
+        - name: APP_NAME
+          value: "Payroll application"
+        - name: BG_COLOR
+          value: "blue"
+  replicas: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-payroll-service
+  labels:
+    app: k8s-payroll-app
+    type: k8s-connectivity-test
+spec:
+  type: NodePort
+  selector:
+    app: k8s-payroll-app
+    type: k8s-connectivity-test
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30083
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restrict-payroll-access
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: k8s-payroll-app
+      type: k8s-connectivity-test
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: k8s-internal-app
+    ports:
+    - protocol: TCP
+      port: 8080
+  - from:
+    - podSelector:
+        matchExpressions:
+          - key: app
+            operator: NotIn
+            values: ["k8s-external-app"]
+    ports:
+    - protocol: TCP
+      port: 8080
+---
+# DATABASE
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: mysql
+#   labels:
+#     app: k8s-conn-test
+#     type: mysql
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: mysql
+#   template:
+#     metadata:
+#       labels:
+#         app: k8s-conn-test
+#         type: mysql
+#     spec:
+#       containers:
+#         - name: mysql
+#           image: mysql:8.0
+#           env:
+#             - name: MYSQL_ROOT_PASSWORD
+#               value: "root_password"  # Set the root password
+#             - name: MYSQL_DATABASE
+#               value: "my_database"   # Set the default database
+#             - name: MYSQL_USER
+#               value: "mysql_user"    # Set the username
+#             - name: MYSQL_PASSWORD
+#               value: "user_password"  # Set the password
+#           ports:
+#             - containerPort: 3306
+#               name: mysql
+#           volumeMounts:
+#             - name: mysql-data
+#               mountPath: /var/lib/mysql
+#       volumes:
+#         - name: mysql-data
+#           persistentVolumeClaim:
+#             claimName: mysql-pvc  # You will need a PVC for MySQL data persistence
+
+# ---
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: mysql-pvc
+#   labels:
+#     app: k8s-conn-test
+# spec:
+#   accessModes:
+#     - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 1Gi  # Adjust size as needed
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: mysql
+#   labels:
+#     app: k8s-conn-test
+#     type: mysql
+# spec:
+#   selector:
+#     app: mysql
+#   ports:
+#     - port: 3306
+#       targetPort: 3306
+#   clusterIP: None  # Headless service for direct access by the internal app
